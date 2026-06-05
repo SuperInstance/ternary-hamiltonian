@@ -1,0 +1,8 @@
+[package]
+name = "ternary-hamiltonian"
+version = "0.1.0"
+edition = "2021"
+description = "Hamiltonian mechanics on ternary phase space"
+license = "MIT"
+
+[dependencies]
