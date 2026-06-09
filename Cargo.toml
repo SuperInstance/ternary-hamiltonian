@@ -6,4 +6,3 @@ description = "Hamiltonian mechanics on ternary phase space"
 license = "MIT"
 
 [dependencies]
-ternary-types = { git = "https://github.com/SuperInstance/ternary-types.git", features = ["std"] }
