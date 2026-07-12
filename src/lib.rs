@@ -534,6 +534,65 @@ mod tests {
         assert_eq!(phase.dimension(), 4);
     }
 
+    /// Independent physics spot-check (hand-derived, not from the code).
+    ///
+    /// For one degree of freedom with α = β = 1 the symplectic-Euler step is
+    /// the linear map over Z₃
+    ///
+    ///     p' = p − q,   q' = q + p' = q + (p − q) = p   (all mod 3),
+    ///
+    /// i.e. (q, p) ↦ (p, p − q). Its matrix is M = [[0, 1], [2, 1]], with
+    /// determinant 0·1 − 1·2 = −2 ≡ 1 (mod 3): the map is exactly
+    /// volume-preserving, and M³ = 2I, M⁶ = I, so every orbit has period
+    /// dividing 6. Decoded to ternary {-1, 0, +1}, the full 9-state transition
+    /// table (derived by hand) is:
+    ///
+    ///     (-1,-1)->(-1,-1)   (-1, 0)->( 0, 0)   (-1,+1)->(+1,+1)
+    ///     ( 0,-1)->(-1,+1)   ( 0, 0)->( 0,-1)   ( 0,+1)->(+1, 0)
+    ///     (+1,-1)->(-1, 0)   (+1, 0)->( 0,+1)   (+1,+1)->(+1,-1)
+    ///
+    /// Verify the integrator reproduces every entry, and that the table is a
+    /// bijection (all 9 outputs distinct) — a concrete, known-correct result.
+    #[test]
+    fn test_symplectic_euler_z3_orbit_table() {
+        let coupling = TernaryCoupling::harmonic(); // α = β = 1
+
+        // (q_in, p_in, q_out, p_out) in ternary {-1, 0, +1}, hand-derived.
+        let table: [(i8, i8, i8, i8); 9] = [
+            (-1, -1, -1, -1),
+            (-1, 0, 0, 0),
+            (-1, 1, 1, 1),
+            (0, -1, -1, 1),
+            (0, 0, 0, -1),
+            (0, 1, 1, 0),
+            (1, -1, -1, 0),
+            (1, 0, 0, 1),
+            (1, 1, 1, -1),
+        ];
+
+        let mut outputs: Vec<(i8, i8)> = Vec::with_capacity(9);
+        for &(q_in, p_in, q_out, p_out) in &table {
+            let phase = PhaseSpace::new(vec![q_in], vec![p_in]);
+            let next = SymplecticIntegrator::symplectic_euler(&phase, &coupling);
+            assert_eq!(
+                next.positions,
+                vec![q_out],
+                "wrong q for input ({q_in},{p_in})"
+            );
+            assert_eq!(
+                next.momenta,
+                vec![p_out],
+                "wrong p for input ({q_in},{p_in})"
+            );
+            outputs.push((q_out, p_out));
+        }
+
+        // The hand-derived map is a permutation: all 9 outputs are distinct.
+        outputs.sort();
+        outputs.dedup();
+        assert_eq!(outputs.len(), 9, "orbit table is not a bijection");
+    }
+
     // ── Phase Space Volume Preservation (Liouville's Theorem) ──────────
 
     /// The critical test: evolve the ENTIRE phase space (all 9 states for
@@ -693,6 +752,12 @@ mod tests {
     // ── Full integration loop with energy tracking ────────────────────
 
     #[test]
+    /// The Z₃ harmonic flow is a permutation of a finite state space, so the
+    /// trajectory is exactly periodic: the state (and therefore the energy)
+    /// must return to its starting value. This used to assert only
+    /// `history.len() == 20`; it now actually finds the period and checks that
+    /// the Euclidean diagnostic energy is restored to zero drift over a full
+    /// period — the real conservation statement for this discrete system.
     fn test_full_integration_loop_energy_tracking() {
         let mut phase = PhaseSpace::new(vec![1, -1, 0], vec![0, 1, -1]);
         let h = Hamiltonian::new(1.0, 1.0);
@@ -700,15 +765,33 @@ mod tests {
         let initial_energy = h.energy_at(&phase);
         let mut ec = EnergyConservation::new(initial_energy);
 
-        for _ in 0..20 {
+        let start = phase.clone();
+        let mut period = 0usize;
+        // 3^6 = 729 is the full 3-DOF state-space size; any permutation must
+        // return a state to itself within that many steps. (For the harmonic
+        // coupling the actual period is ≤ 6, so this is very generous.)
+        for step in 1..=729 {
             phase = SymplecticIntegrator::symplectic_euler(&phase, &coupling);
             ec.record(h.energy_at(&phase));
-            assert!(phase.is_valid());
+            assert!(phase.is_valid(), "left ternary domain at step {step}");
+            if phase == start {
+                period = step;
+                break;
+            }
         }
+        assert!(
+            period > 0,
+            "trajectory never returned to start within 729 steps"
+        );
 
-        // Z₃ dynamics is periodic, so energy should return to initial value
-        // at some point. We just verify the tracker works.
-        assert_eq!(ec.history.len(), 20);
+        // Identical state over a full period ⇒ identical energy ⇒ zero drift
+        // at the period, even though H is not a step-wise invariant.
+        let e_at_period = h.energy_at(&phase);
+        assert!(
+            (e_at_period - initial_energy).abs() < 1e-12,
+            "energy not restored over a full period: {e_at_period} vs {initial_energy}"
+        );
+        assert_eq!(ec.history.len(), period);
     }
 
     // ── PoissonBracket ────────────────────────────────────────────────
