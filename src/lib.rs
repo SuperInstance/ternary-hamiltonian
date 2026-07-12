@@ -563,7 +563,8 @@ mod tests {
 
             let vol = LiouvilleTheorem::volume(&ensemble);
             assert_eq!(
-                vol, 9.0,
+                vol,
+                9.0,
                 "Volume lost at Euler step {}: got {} (expected 9.0)",
                 step + 1,
                 vol
@@ -592,7 +593,8 @@ mod tests {
 
             let vol = LiouvilleTheorem::volume(&ensemble);
             assert_eq!(
-                vol, 9.0,
+                vol,
+                9.0,
                 "Volume lost at Verlet step {}: got {} (expected 9.0)",
                 step + 1,
                 vol
@@ -626,7 +628,8 @@ mod tests {
 
             let vol = LiouvilleTheorem::volume(&ensemble);
             assert_eq!(
-                vol, 81.0,
+                vol,
+                81.0,
                 "Volume lost at 2-DOF Verlet step {}: got {}",
                 step + 1,
                 vol
@@ -732,12 +735,19 @@ mod tests {
         let a = 3.0_f64;
         let b = -2.0_f64;
 
-        let afpbg: Vec<f64> = f.iter().zip(g.iter()).map(|(fi, gi)| a * fi + b * gi).collect();
+        let afpbg: Vec<f64> = f
+            .iter()
+            .zip(g.iter())
+            .map(|(fi, gi)| a * fi + b * gi)
+            .collect();
 
         let lhs = PoissonBracket::compute(&afpbg, &h, &phase);
         let rhs = a * PoissonBracket::compute(&f, &h, &phase)
             + b * PoissonBracket::compute(&g, &h, &phase);
-        assert!((lhs - rhs).abs() < 1e-12, "Linearity violated: lhs={lhs}, rhs={rhs}");
+        assert!(
+            (lhs - rhs).abs() < 1e-12,
+            "Linearity violated: lhs={lhs}, rhs={rhs}"
+        );
     }
 
     #[test]
@@ -769,7 +779,10 @@ mod tests {
             PhaseSpace::new(vec![-1, 1], vec![1, -1]),
         ];
         let final_states = initial.clone();
-        assert!(LiouvilleTheorem::check_conservation(&initial, &final_states));
+        assert!(LiouvilleTheorem::check_conservation(
+            &initial,
+            &final_states
+        ));
     }
 
     #[test]
@@ -783,6 +796,9 @@ mod tests {
             PhaseSpace::new(vec![1], vec![0]),
             PhaseSpace::new(vec![1], vec![0]),
         ];
-        assert!(!LiouvilleTheorem::check_conservation(&initial, &final_states));
+        assert!(!LiouvilleTheorem::check_conservation(
+            &initial,
+            &final_states
+        ));
     }
 }
